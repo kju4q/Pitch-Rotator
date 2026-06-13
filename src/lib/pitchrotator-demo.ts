@@ -93,7 +93,7 @@ export const productEvidence: ProductEvidence[] = [
     id: "surface-website",
     label: "Website",
     source: "website",
-    claim: "AutoPMF evaluates the surfaces buyers actually see.",
+    claim: "PitchRotator evaluates the surfaces buyers actually see.",
     proof:
       "Founder inputs include website, repo, docs, demo, deck, notes, and pitch.",
     confidence: "verified",
@@ -219,7 +219,7 @@ export const convictionTrajectories: ConvictionTrajectory[] = [
     score: 76,
     lift: 12,
     steps: [
-      "Understands the AutoUX-to-AutoPMF analogy",
+      "Understands the AutoUX-to-PitchRotator analogy",
       "Questions whether this is a durable company or a pitch feature",
       "Looks for proprietary trajectory data over time",
       "Would take a meeting if the first wedge is narrow",
@@ -235,7 +235,7 @@ export const hookCandidates: HookCandidate[] = [
     segment: "technical_evaluator",
     strategy: "technical_unlock",
     openingLine:
-      "AutoUX tests whether users can use your product. AutoPMF tests whether buyers can believe it.",
+      "AutoUX tests whether users can use your product. PitchRotator tests whether buyers can believe it.",
     score: 94,
     proofNeeded: "Show a real trajectory from product surface to objection.",
     objectionHandled: "This is not a generic pitch generator.",
@@ -274,7 +274,7 @@ export const hookCandidates: HookCandidate[] = [
 
 export const narrativeGraph: NarrativeGraph = {
   hook:
-    "Every founder is guessing their pitch. AutoPMF runs simulated buyers through the product and finds the hook your market believes.",
+    "Every founder is guessing their pitch. PitchRotator runs simulated buyers through the product and finds the hook your market believes.",
   problem:
     "Founders cannot tell whether buyers reject the product or simply do not understand why it matters.",
   targetBuyer:
@@ -282,7 +282,7 @@ export const narrativeGraph: NarrativeGraph = {
   currentWorkaround:
     "They rewrite decks, ask friends, post random variants, and confuse feedback about the product with feedback about the story.",
   mechanism:
-    "AutoPMF builds a Product Evidence Graph, runs CUA BuyerSim trajectories, clusters conviction blockers, and ranks hooks by segment.",
+    "PitchRotator builds a Product Evidence Graph, runs CUA BuyerSim trajectories, clusters conviction blockers, and ranks hooks by segment.",
   proof:
     "Each optimized claim is evidence-locked to a website, repo, docs, demo, deck, or founder note.",
   objection:

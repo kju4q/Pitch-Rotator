@@ -1,22 +1,22 @@
-# AutoPMF
+# PitchRotator
 
-AutoPMF is a CUA BuyerSim for founder narratives.
+PitchRotator is a CUA BuyerSim for founder narratives.
 
 Founders often do not know whether the market rejects the product or simply
-does not understand the story. AutoPMF ingests the surfaces a buyer actually
+does not understand the story. PitchRotator ingests the surfaces a buyer actually
 sees - website, repo, docs, demo, deck, notes, and founder pitch - then runs
 simulated target buyers through them to find where conviction forms or breaks.
 
-AutoUX tests whether users can use your product. AutoPMF tests whether buyers
+AutoUX tests whether users can use your product. PitchRotator tests whether buyers
 can believe it.
 
 ## Product Thesis
 
-AutoPMF helps founders find narrative-market fit before they waste months
+PitchRotator helps founders find narrative-market fit before they waste months
 pitching the wrong story to the wrong audience.
 
 The product does not claim to prove product-market fit. True PMF needs real
-usage, retention, revenue, and market behavior. AutoPMF focuses on the earlier
+usage, retention, revenue, and market behavior. PitchRotator focuses on the earlier
 but critical question:
 
 > Can the right market understand and believe this product?
@@ -30,7 +30,7 @@ but critical question:
    - Demo transcript
    - Deck, PRD, memo, or rough notes
    - Founder voice memo
-2. AutoPMF builds a Product Evidence Graph
+2. PitchRotator builds a Product Evidence Graph
 3. CUA BuyerSim personas evaluate the real market surfaces
 4. Conviction trajectories show where each buyer understood, trusted, or
    rejected the narrative
@@ -79,7 +79,7 @@ Suggested structure:
 
 - 0:00-0:20 Problem: founders cannot tell if the market rejects the product or
   just does not understand it
-- 0:20-0:45 Thesis: AutoPMF is a CUA BuyerSim for founder narratives
+- 0:20-0:45 Thesis: PitchRotator is a CUA BuyerSim for founder narratives
 - 0:45-1:20 Input: product surfaces
 - 1:20-2:00 Simulation: target buyer personas and conviction trajectories
 - 2:00-2:40 Output: conviction blockers and Hook Matrix
@@ -98,4 +98,4 @@ Open `http://localhost:3000`.
 ## Repository Rule
 
 This project starts from a clean scaffold and keeps its own git history inside
-`/Users/0xhoti/shaperotator/autopmf`.
+`/Users/0xhoti/shaperotator/pitchrotator`.
