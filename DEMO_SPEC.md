@@ -54,12 +54,14 @@ Eight screens, timed. Each beat = what's on screen + what the narrator says.
 | 1:55–2:20 | **5 Current Pitch Critique** | Public-says vs private-reveals, side by side | "My public pitch said 'AI pitch coach.' My private context reveals a *private founder-agent*. The Skeptic agent flags exactly why the public version sounds like a wrapper." |
 | 2:20–2:45 | **6 Rewritten Pitch** | 30s / 60s / demo-day, each sentence carrying **trace chips** | "Rewritten in my voice. Every sentence carries a chip back to its private source — Claude export lines 42–57, voice memo 01:12." |
 | 2:45–3:25 | **7 Video Rehearsal → Evaluation** | Record Take 2; scorecard animates; **Take 1 vs Take 2** | "I rehearse it. Headline metric: *Sounds like me*. Take 1 was 54. After speaking it back in my own language — 89." (Section 4.) |
-| 3:25–3:50 | **8 Privacy Receipt** | Files local: 5, raw uploaded: 0, masked: 14, claims traced, **signed**, Walrus blob id | "Signed with Dynamic, published to Walrus. A receipt proving what was processed, what was sent, and that every claim traces to a private source." |
+| 3:25–3:50 | **8 Privacy Receipt** | Files local: 5, raw uploaded: 0, masked: 14, claims traced, **signed**, Walrus blob id, ENS pointer | "Signed with Dynamic on Sui, the Pitch Pack encrypted with Seal and published to Walrus, the blob id pinned to my ENS name. A receipt proving what was processed, what was sent, and that every claim traces to a private source." |
 | 3:50–4:00 | Close | Killer line | "I gave it my messy founder brain. It gave me the pitch I was trying to say." |
 
 Sponsor beats land *inside* the story, not as a bolt-on: **local MCP** (privacy
-mechanism), **Dynamic** (signs the receipt), **Walrus** (publishes the signed
-public artifact). See `README.md` § Sponsor Stack.
+mechanism), **Seal** (encrypts the Pitch Pack), **Dynamic** (founder signs on
+Sui), **Walrus** (publishes the signed encrypted artifact), **ENS** (text record
+pins the blob id + receipt hash to the founder-agent name). Confirmed stack and
+rationale in `docs/sponsor-research.md`.
 
 ## 4. Evaluation screen (deep spec)
 
@@ -173,8 +175,9 @@ filler signal and merges.
 
 1. **Demo scenario** — canned (`pitchrotator-demo.ts`) vs recursive self-demo
    (§2). Recommend recursive, fall back to canned.
-2. **Sponsor moment** — confirm Dynamic signs the receipt and Walrus stores the
-   public artifact (pending the running research's Unlink-vs-ENS verdict).
+2. **Sponsor moment** — resolved: **Walrus + Seal + Dynamic + ENS** (Unlink
+   dropped as a forced fit; see `docs/sponsor-research.md`). Remaining: confirm
+   Dynamic arbitrary-payload signing on Sui at the sponsor table.
 3. **Scoring source of truth** — for the demo, do we call Claude live or play
    back `rehearsalScores`? Recommend: live for soundsLikeMe (the wow), canned
    fallback so a flaky network never breaks the 4-minute run.
