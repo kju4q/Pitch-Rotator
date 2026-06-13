@@ -1,330 +1,344 @@
-export type EvidenceSource =
-  | "website"
-  | "repo"
-  | "docs"
-  | "demo"
-  | "deck"
-  | "notes";
+// PitchRotator demo data model.
+//
+// PitchRotator is a private founder-agent: it reads a founder's messy private
+// context (notes, Claude exports, repo context, voice memos, rough drafts),
+// builds a Founder Voice Profile, rewrites the pitch in the founder's own
+// words, supports video rehearsal, and produces a Privacy Receipt that proves
+// what was used and what never left the device.
+//
+// Raw files stay local. Only founder-approved, redacted excerpts are sent for
+// model evaluation. Every generated claim is traceable to a private source.
 
-export type BuyerSegment =
-  | "technical_evaluator"
-  | "economic_buyer"
-  | "early_adopter"
-  | "investor"
-  | "founder_peer";
+export type PrivateSource =
+  | "claude_export"
+  | "notes"
+  | "readme"
+  | "rough_pitch"
+  | "voice_memo";
 
-export type HookStrategy =
-  | "pain_first"
-  | "outcome_first"
-  | "technical_unlock"
-  | "economic_roi"
-  | "contrarian"
-  | "founder_insight";
+// The three agents that reconcile the founder's private context into a public
+// pitch. We deliberately use exactly three, not thirty personas.
+export type AgentRole = "self" | "judge" | "skeptic";
 
-export type ConvictionMetric =
-  | "comprehension"
-  | "urgency"
-  | "trust"
-  | "differentiation"
-  | "proof"
-  | "nextStep";
+// What gets masked locally before anything is sent to a remote model.
+export type SensitiveEntity =
+  | "person_name"
+  | "email"
+  | "company_name"
+  | "secret"
+  | "customer_name";
 
-export type BuyerPersona = {
-  id: BuyerSegment;
+export type Agent = {
+  id: AgentRole;
   label: string;
-  role: string;
-  skepticism: "low" | "medium" | "high";
-  currentWorkaround: string;
-  proofNeeded: string[];
-  objections: string[];
-  languagePreference: string;
+  question: string;
+  inputs: string[];
+  outputs: string[];
 };
 
-export type ProductEvidence = {
+// A founder-context file the user drops in. Processed locally only.
+export type ContextFile = {
   id: string;
   label: string;
-  source: EvidenceSource;
+  source: PrivateSource;
+  bytes: number;
+  processedLocally: true;
+  rawUploaded: false;
+};
+
+// One excerpt the founder reviews before it may leave the browser. Raw text
+// stays local; only the redacted form is ever eligible to be sent.
+export type Excerpt = {
+  id: string;
+  sourceFileId: string;
+  rawSpan: string; // human-readable locator, e.g. "lines 42-57"
+  redactedText: string;
+  maskedEntities: SensitiveEntity[];
+  approved: boolean;
+};
+
+// The emotional moat. Extracted from approved excerpts.
+export type FounderVoiceProfile = {
+  coreBelief: string;
+  naturalPhrases: string[];
+  emotionalDriver: string;
+  productWedge: string;
+  forbiddenStyle: string;
+  strongestProof: string[];
+  thingsTheFounderKeepsTryingToSay: string[];
+};
+
+// The trust moat. Every generated claim points back to its private sources.
+export type EvidenceTrace = {
   claim: string;
-  proof: string;
-  confidence: "verified" | "partial" | "hypothesis";
+  sourceExcerptIds: string[];
 };
 
-export type ConvictionTrajectory = {
-  personaId: BuyerSegment;
-  hookStrategy: HookStrategy;
-  score: number;
-  lift: number;
-  steps: string[];
-  blocker: string;
-  signal: string;
+// Before/after, the aha moment.
+export type PitchRewrite = {
+  publicPitchSays: string;
+  privateContextReveals: string;
+  thirtySecond: string;
+  sixtySecond: string;
+  demoDay: string;
 };
 
-export type HookCandidate = {
-  id: string;
-  segment: BuyerSegment;
-  strategy: HookStrategy;
-  openingLine: string;
-  score: number;
-  proofNeeded: string;
-  objectionHandled: string;
+// Video rehearsal scoring. "Sounds like me" is the headline metric.
+export type RehearsalScore = {
+  soundsLikeMe: number;
+  specificity: number;
+  clarity: number;
+  demoMomentum: number;
+  trust: number;
+  audienceFit: number;
 };
 
-export type NarrativeGraph = {
-  hook: string;
-  problem: string;
-  targetBuyer: string;
-  currentWorkaround: string;
-  mechanism: string;
-  proof: string;
-  objection: string;
-  outcome: string;
-  cta: string;
+// The hackathon moat. Honest, buildable, demoable.
+export type PrivacyReceipt = {
+  sessionId: string;
+  filesProcessedLocally: number;
+  rawFilesUploaded: number;
+  approvedExcerptCount: number;
+  rejectedExcerptCount: number;
+  sensitiveEntitiesMasked: number;
+  modelCalls: {
+    purpose: string;
+    excerptIds: string[];
+    rawFileAccess: false;
+  }[];
+  generatedClaims: EvidenceTrace[];
+  receiptHash: string;
+  founderSignature?: string;
+  walrusBlobId?: string;
 };
 
-export type VideoSpec = {
-  id: string;
-  format: string;
-  duration: string;
-  slotOrder: Array<keyof NarrativeGraph>;
-};
-
-export const productEvidence: ProductEvidence[] = [
+export const agents: Agent[] = [
   {
-    id: "surface-website",
-    label: "Website",
-    source: "website",
-    claim: "PitchRotator evaluates the surfaces buyers actually see.",
-    proof:
-      "Founder inputs include website, repo, docs, demo, deck, notes, and pitch.",
-    confidence: "verified",
+    id: "self",
+    label: "Self Agent",
+    question: "What is the founder really trying to say?",
+    inputs: ["private notes", "Claude export", "voice memo", "README", "rough pitch"],
+    outputs: [
+      "Founder Voice Profile",
+      "hidden thesis",
+      "natural phrases",
+      "real wedge",
+      "forbidden generic style",
+    ],
   },
   {
-    id: "surface-simulation",
-    label: "BuyerSim",
+    id: "judge",
+    label: "Judge Agent",
+    question: "Would a listener understand and remember this in 60 seconds?",
+    inputs: ["public pitch", "demo goal", "target audience"],
+    outputs: [
+      "clarity score",
+      "memorability score",
+      "missing proof",
+      "confusing language",
+      "suggested structure",
+    ],
+  },
+  {
+    id: "skeptic",
+    label: "Skeptic Agent",
+    question: "Why is this not just another AI pitch tool?",
+    inputs: ["rewritten pitch", "differentiation claims"],
+    outputs: [
+      "sharpest objection",
+      "differentiation gap",
+      "trust issue",
+      "privacy concern",
+      "what proof would change my mind",
+    ],
+  },
+];
+
+export const contextFiles: ContextFile[] = [
+  {
+    id: "file-claude-export",
+    label: "Claude chat export",
+    source: "claude_export",
+    bytes: 184_320,
+    processedLocally: true,
+    rawUploaded: false,
+  },
+  {
+    id: "file-notes",
+    label: "Messy product notes",
     source: "notes",
-    claim: "Target buyer personas evaluate comprehension, urgency, and trust.",
-    proof:
-      "The MVP runs buyer segments against hook strategies and produces conviction trajectories.",
-    confidence: "verified",
+    bytes: 22_016,
+    processedLocally: true,
+    rawUploaded: false,
   },
   {
-    id: "surface-video",
-    label: "Video compiler",
-    source: "demo",
-    claim: "Winning hooks can compile into programmable founder video formats.",
-    proof:
-      "Narrative Graph slots map into 15-second, 45-second, and 90-second video specs.",
-    confidence: "partial",
+    id: "file-readme",
+    label: "Product README",
+    source: "readme",
+    bytes: 9_412,
+    processedLocally: true,
+    rawUploaded: false,
   },
   {
-    id: "surface-cua",
-    label: "CUA execution",
-    source: "repo",
-    claim: "Browser agents will inspect live product surfaces like real buyers.",
-    proof:
-      "Current scaffold models the trajectory contract; real browser execution is a next layer.",
-    confidence: "hypothesis",
+    id: "file-rough-pitch",
+    label: "Rough pitch draft",
+    source: "rough_pitch",
+    bytes: 3_180,
+    processedLocally: true,
+    rawUploaded: false,
+  },
+  {
+    id: "file-voice-memo",
+    label: "Voice memo transcript",
+    source: "voice_memo",
+    bytes: 6_744,
+    processedLocally: true,
+    rawUploaded: false,
   },
 ];
 
-export const buyerPersonas: BuyerPersona[] = [
+export const excerpts: Excerpt[] = [
   {
-    id: "technical_evaluator",
-    label: "Technical Evaluator",
-    role: "Staff engineer asked to vet adoption risk",
-    skepticism: "high",
-    currentWorkaround: "Manual review of docs, demo, and repo credibility",
-    proofNeeded: ["architecture", "integration path", "failure modes"],
-    objections: ["Is this just a wrapper?", "Can we trust the output?"],
-    languagePreference: "specific, technical, no hype",
+    id: "ex-1",
+    sourceFileId: "file-claude-export",
+    rawSpan: "lines 42-57",
+    redactedText:
+      "the real problem isn't pitch feedback, it's that my actual thinking lives in private notes and I keep flattening it into generic startup language",
+    maskedEntities: ["company_name"],
+    approved: true,
   },
   {
-    id: "economic_buyer",
-    label: "Economic Buyer",
-    role: "Founder or operator deciding if this saves time or budget",
-    skepticism: "medium",
-    currentWorkaround: "Repeating pitches manually and guessing what resonates",
-    proofNeeded: ["time saved", "clear ROI", "before and after narrative lift"],
-    objections: ["Will this change outcomes?", "Is the setup worth it?"],
-    languagePreference: "plain ROI language with visible outputs",
+    id: "ex-2",
+    sourceFileId: "file-voice-memo",
+    rawSpan: "01:12-01:40",
+    redactedText:
+      "I'm trying to get people out of workflow hell — that's the line I keep coming back to and then deleting because it sounds too casual",
+    maskedEntities: [],
+    approved: true,
   },
   {
-    id: "early_adopter",
-    label: "Early Adopter",
-    role: "Builder who feels the pain of being misunderstood",
-    skepticism: "low",
-    currentWorkaround: "Posting variants, asking friends, and rewriting by feel",
-    proofNeeded: ["speed", "useful hooks", "shareable artifacts"],
-    objections: ["Will it sound like me?", "Can I use this today?"],
-    languagePreference: "direct, emotionally accurate, fast-moving",
+    id: "ex-3",
+    sourceFileId: "file-notes",
+    rawSpan: "paragraph 3",
+    redactedText:
+      "good products die when founders cannot explain the real insight to the right person at the right moment",
+    maskedEntities: ["customer_name"],
+    approved: true,
   },
   {
-    id: "investor",
-    label: "Investor",
-    role: "Seed investor evaluating wedge and market urgency",
-    skepticism: "high",
-    currentWorkaround: "Pattern matching from deck, demo, and founder clarity",
-    proofNeeded: ["market wedge", "why now", "credible expansion path"],
-    objections: ["Is this a feature?", "What is structurally hard to copy?"],
-    languagePreference: "crisp thesis, category framing, evidence over slogans",
-  },
-];
-
-export const convictionTrajectories: ConvictionTrajectory[] = [
-  {
-    personaId: "technical_evaluator",
-    hookStrategy: "technical_unlock",
-    score: 91,
-    lift: 23,
-    steps: [
-      "Scans product surfaces for actual mechanism",
-      "Finds evidence graph and trajectory contract",
-      "Trust increases when unsupported claims are labeled",
-      "Would inspect a live CUA replay next",
-    ],
-    blocker: "Needs proof that BrowserSim can evaluate real surfaces reliably.",
-    signal: "Evidence lock makes the system feel auditable instead of magical.",
+    id: "ex-4",
+    sourceFileId: "file-rough-pitch",
+    rawSpan: "opening line",
+    redactedText: "we help founders improve their pitch using AI feedback",
+    maskedEntities: [],
+    approved: true,
   },
   {
-    personaId: "economic_buyer",
-    hookStrategy: "economic_roi",
-    score: 82,
-    lift: 18,
-    steps: [
-      "Understands the pain of repeated founder pitch guessing",
-      "Looks for saved time and reusable outputs",
-      "Responds to top hook plus video-ready formats",
-      "Wants a before and after conversion example",
-    ],
-    blocker: "ROI is believable only if the practice loop shows improvement.",
-    signal: "Conviction lift is the metric that makes the value concrete.",
-  },
-  {
-    personaId: "early_adopter",
-    hookStrategy: "pain_first",
-    score: 88,
-    lift: 31,
-    steps: [
-      "Recognizes the emotional pain of being misunderstood",
-      "Connects with narrative-market fit language",
-      "Wants the winning hook immediately",
-      "Would share the generated short-form script",
-    ],
-    blocker: "The product has to preserve founder voice, not flatten it.",
-    signal: "The line 'find the hook your market believes' lands fastest.",
-  },
-  {
-    personaId: "investor",
-    hookStrategy: "contrarian",
-    score: 76,
-    lift: 12,
-    steps: [
-      "Understands the AutoUX-to-PitchRotator analogy",
-      "Questions whether this is a durable company or a pitch feature",
-      "Looks for proprietary trajectory data over time",
-      "Would take a meeting if the first wedge is narrow",
-    ],
-    blocker: "Needs a sharper initial market than all founders.",
-    signal: "CUA BuyerSim plus accumulated trajectory data suggests a moat.",
+    id: "ex-5",
+    sourceFileId: "file-claude-export",
+    rawSpan: "lines 88-94",
+    redactedText:
+      "[REDACTED: investor name] said the deck sounded like everyone else's — that stung because the private version is sharp",
+    maskedEntities: ["person_name", "company_name"],
+    approved: false,
   },
 ];
 
-export const hookCandidates: HookCandidate[] = [
-  {
-    id: "hook-technical",
-    segment: "technical_evaluator",
-    strategy: "technical_unlock",
-    openingLine:
-      "AutoUX tests whether users can use your product. PitchRotator tests whether buyers can believe it.",
-    score: 94,
-    proofNeeded: "Show a real trajectory from product surface to objection.",
-    objectionHandled: "This is not a generic pitch generator.",
-  },
-  {
-    id: "hook-market",
-    segment: "early_adopter",
-    strategy: "pain_first",
-    openingLine:
-      "The product did not change. The market's understanding changed.",
-    score: 92,
-    proofNeeded: "Show before and after hooks for the same product.",
-    objectionHandled: "Better articulation can change buyer conviction.",
-  },
-  {
-    id: "hook-roi",
-    segment: "economic_buyer",
-    strategy: "economic_roi",
-    openingLine:
-      "Stop guessing your pitch. Run 30 simulated buyers and see which hook creates conviction.",
-    score: 87,
-    proofNeeded: "Show the Hook Matrix and conviction lift.",
-    objectionHandled: "The system returns ranked outputs, not another blank doc.",
-  },
-  {
-    id: "hook-investor",
-    segment: "investor",
-    strategy: "contrarian",
-    openingLine:
-      "Founders spend months changing the product when the first thing broken is often the narrative.",
-    score: 83,
-    proofNeeded: "Show that trajectories reveal segment-specific blockers.",
-    objectionHandled: "Narrative-market fit is earlier and narrower than PMF.",
-  },
-];
-
-export const narrativeGraph: NarrativeGraph = {
-  hook:
-    "Every founder is guessing their pitch. PitchRotator runs simulated buyers through the product and finds the hook your market believes.",
-  problem:
-    "Founders cannot tell whether buyers reject the product or simply do not understand why it matters.",
-  targetBuyer:
-    "Early-stage founders with technical products, unclear positioning, and multiple possible buyer segments.",
-  currentWorkaround:
-    "They rewrite decks, ask friends, post random variants, and confuse feedback about the product with feedback about the story.",
-  mechanism:
-    "PitchRotator builds a Product Evidence Graph, runs CUA BuyerSim trajectories, clusters conviction blockers, and ranks hooks by segment.",
-  proof:
-    "Each optimized claim is evidence-locked to a website, repo, docs, demo, deck, or founder note.",
-  objection:
-    "It does not claim to prove product-market fit. It tests narrative-market fit: whether the right buyer can understand and believe the product.",
-  outcome:
-    "The founder gets the strongest hook, a reusable Narrative Graph, video-ready scripts, and a practice loop for delivery.",
-  cta: "Simulate your market before you pitch it.",
+export const founderVoiceProfile: FounderVoiceProfile = {
+  coreBelief:
+    "Good products die when founders cannot explain the real insight.",
+  naturalPhrases: [
+    "I'm trying to get people out of workflow hell.",
+    "the sharp version is already in my notes",
+  ],
+  emotionalDriver:
+    "I hate when sharp private thinking becomes generic public language.",
+  productWedge:
+    "A private founder-agent that recovers your real voice from messy context — not generic pitch feedback.",
+  forbiddenStyle: "Do not make this sound like YC/VC slop.",
+  strongestProof: [
+    "The founder already used this flow to improve a pitch live.",
+    "The private notes contain a sharper thesis than the public deck.",
+  ],
+  thingsTheFounderKeepsTryingToSay: [
+    "My best explanation is buried in private context.",
+    "The pitch should still sound like me.",
+  ],
 };
 
-export const videoSpecs: VideoSpec[] = [
+export const evidenceTraces: EvidenceTrace[] = [
   {
-    id: "video-social",
-    format: "15s social hook",
-    duration: "0:15",
-    slotOrder: ["hook", "problem", "outcome", "cta"],
+    claim: "PitchRotator keeps raw founder context local.",
+    sourceExcerptIds: ["ex-1"],
   },
   {
-    id: "video-founder",
-    format: "45s founder intro",
-    duration: "0:45",
-    slotOrder: ["hook", "problem", "mechanism", "proof", "cta"],
+    claim:
+      "The founder's real wedge is private context, not generic pitch feedback.",
+    sourceExcerptIds: ["ex-1", "ex-2", "ex-3"],
   },
   {
-    id: "video-technical",
-    format: "90s technical buyer pitch",
-    duration: "1:30",
-    slotOrder: [
-      "problem",
-      "currentWorkaround",
-      "mechanism",
-      "proof",
-      "objection",
-      "cta",
-    ],
+    claim: "The current public pitch reads like a wrapper.",
+    sourceExcerptIds: ["ex-4"],
   },
 ];
 
-export const convictionMetrics: Record<ConvictionMetric, number> = {
-  comprehension: 91,
-  urgency: 84,
-  trust: 86,
-  differentiation: 78,
-  proof: 82,
-  nextStep: 88,
+export const pitchRewrite: PitchRewrite = {
+  publicPitchSays: "AI pitch coach.",
+  privateContextReveals:
+    "Private founder-agent that recovers your real voice from messy context.",
+  thirtySecond:
+    "Your best pitch is already buried in your private notes, chats, and voice memos. PitchRotator finds it, keeps your raw context local, and gives you a demo-day pitch that still sounds like you.",
+  sixtySecond:
+    "Founders don't only struggle with pitching — their best explanation is buried in private context: chats, notes, voice memos, and half-written docs. PitchRotator is a private founder-agent that reads that context locally, redacts what's sensitive, extracts your Founder Voice Profile, and rewrites your pitch in your own words. Every claim traces back to a private source, and only approved excerpts ever leave your browser.",
+  demoDay:
+    "PitchRotator turns your private founder chaos into a demo-day pitch that still sounds like you. Raw files stay local, approved excerpts are redacted, every claim is traceable, and the final pitch can be rehearsed on video and published with a Privacy Receipt.",
+};
+
+export const rehearsalScores: Record<"take1" | "take2", RehearsalScore> = {
+  take1: {
+    soundsLikeMe: 54,
+    specificity: 48,
+    clarity: 61,
+    demoMomentum: 50,
+    trust: 57,
+    audienceFit: 52,
+  },
+  take2: {
+    soundsLikeMe: 89,
+    specificity: 84,
+    clarity: 86,
+    demoMomentum: 82,
+    trust: 85,
+    audienceFit: 83,
+  },
+};
+
+export const privacyReceipt: PrivacyReceipt = {
+  sessionId: "session-demo-001",
+  filesProcessedLocally: 5,
+  rawFilesUploaded: 0,
+  approvedExcerptCount: 4,
+  rejectedExcerptCount: 1,
+  sensitiveEntitiesMasked: 14,
+  modelCalls: [
+    {
+      purpose: "Founder Voice Profile generation",
+      excerptIds: ["ex-1", "ex-2", "ex-3"],
+      rawFileAccess: false,
+    },
+    {
+      purpose: "Pitch rewrite",
+      excerptIds: ["ex-1", "ex-2", "ex-3", "ex-4"],
+      rawFileAccess: false,
+    },
+    {
+      purpose: "Skeptic objection",
+      excerptIds: ["ex-4"],
+      rawFileAccess: false,
+    },
+  ],
+  generatedClaims: evidenceTraces,
+  receiptHash: "0xpitchrotator0000000000000000000000000000000000000000000000000000",
+  founderSignature: undefined,
+  walrusBlobId: undefined,
 };
