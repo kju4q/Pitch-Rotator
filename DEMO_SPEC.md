@@ -78,14 +78,14 @@ One number, full-width: **"Sounds like me — 89"** with a Take 1 → Take 2 del
 From `RehearsalScore` in `pitchrotator-demo.ts`. Each axis is computed from a
 named signal so the score is defensible, not vibes:
 
-| Axis | What it means | Computed from | Source |
+| Axis | What it means | Computed from | Engine |
 |------|---------------|---------------|--------|
-| **soundsLikeMe** | Did you use *your own* language and avoid generic slop? | Transcript vs `FounderVoiceProfile.naturalPhrases` (hits) and `forbiddenStyle` (penalty) | **NEW** — server, the signature axis |
-| **specificity** | Concrete claims vs hedge phrases | Elocute rubric `specificity` | Reuse `score-content` |
-| **clarity** | Do sentences build logically; low filler | Elocute `coherence` + client-side filler density (Deepgram `filler_words=true`) | Reuse + client |
+| **soundsLikeMe** | Did you use *your own* language and avoid generic slop? | Transcript vs `FounderVoiceProfile.naturalPhrases` (hits) and `forbiddenStyle` (penalty) | Server · signature axis |
+| **specificity** | Concrete claims vs hedge phrases | Concrete-claim density vs hedge phrases | Server |
+| **clarity** | Do sentences build logically; low filler | Logical flow + client-side filler density (Deepgram `filler_words=true`) | Server + client |
 | **demoMomentum** | Pace, energy, no dead air | Client-side: words/min from transcript ÷ audio duration, pause detection | Client |
-| **trust** | Are claims grounded / traceable to context | Elocute `coverage` + evidence-locking to approved excerpts | Reuse + Evidence Trace |
-| **audienceFit** | Right framing for the target listener | Elocute `relevance` to demo goal / target audience (Judge agent) | Reuse `score-content` |
+| **trust** | Are claims grounded / traceable to context | Claim grounding + evidence-locking to approved excerpts | Server + Evidence Trace |
+| **audienceFit** | Right framing for the target listener | Relevance to demo goal / target audience (Judge agent) | Server |
 
 Demo numbers come straight from `rehearsalScores` (Take 1 → Take 2):
 soundsLikeMe 54→89, specificity 48→84, clarity 61→86, demoMomentum 50→82,
@@ -93,8 +93,9 @@ trust 57→85, audienceFit 52→83.
 
 ### 4.3 Grounded evidence (no black-box scores)
 
-Reuse Elocute's `evidence: { axis, quote, verdict }[]` pattern. Each low/high
-axis shows a real quote from the transcript and a one-line verdict, e.g.:
+Every score carries grounded evidence — an `{ axis, quote, verdict }[]` array.
+Each low/high axis shows a real quote from the transcript and a one-line
+verdict, e.g.:
 
 - `soundsLikeMe` · *"trying to get people out of workflow hell"* · ✓ used your
   natural phrase
@@ -107,9 +108,9 @@ axis shows a real quote from the transcript and a one-line verdict, e.g.:
 
 The improvement story is the demo's third act. Show both takes side by side:
 six mini bars per take, the headline delta, and a one-line synthesis
-("Take 2 leaned on your own phrasing and cut the hedges"). The bullshit
-pre-filter from `score-content` still applies — a throwaway take scores 1 and is
-labelled, which protects the metric's credibility live.
+("Take 2 leaned on your own phrasing and cut the hedges"). A junk-take guard
+still applies — a throwaway take scores 1 and is labelled, which protects the
+metric's credibility live.
 
 ### 4.5 Wireframe
 
@@ -137,9 +138,9 @@ labelled, which protects the metric's credibility live.
 
 ### 4.6 Data contract
 
-Extends Elocute's `/api/score-content` (port to a Next.js v16 route handler at
-`app/api/score-rehearsal/route.ts`). The "source" changes from a wiki article to
-the founder's own material.
+A Next.js v16 route handler at `app/api/score-rehearsal/route.ts`. The scoring
+"source" is the founder's own material — the Founder Voice Profile and the
+rewritten pitch they're delivering.
 
 **Request** (`POST /api/score-rehearsal`):
 ```ts
@@ -155,18 +156,18 @@ the founder's own material.
 ```
 
 **Response** (200): the six `RehearsalScore` axes + `evidence[]` + an overall,
-plus the Elocute-style `bullshit` guard. Server scores soundsLikeMe / specificity
-/ clarity-content / trust / audienceFit (Claude Haiku 4.5, reusing the
-`score-content` call shape); client contributes demoMomentum + filler signal and
-merges.
+plus a junk-take guard. Server scores soundsLikeMe / specificity / clarity-content
+/ trust / audienceFit with Claude Haiku 4.5; client contributes demoMomentum +
+filler signal and merges.
 
-### 4.7 What's reused vs new
+### 4.7 Engine components
 
-- **Reuse:** `score-content` call structure, system-prompt rubric, bullshit
-  pre-filter, evidence rows, the weighted-score computation, Deepgram
-  transcription (`filler_words=true` already on).
-- **New:** the `soundsLikeMe` axis (voice-profile match), the six-axis remap,
-  the Take 1↔Take 2 diff view, re-pointing "source" at the founder's pitch.
+- **Server scoring:** Claude Haiku 4.5 against a content rubric (specificity,
+  grounding, audience fit) plus the `soundsLikeMe` voice-profile match.
+- **Client signals:** demoMomentum (words/min, pause detection) and filler
+  density from Deepgram (`filler_words=true`).
+- **Guards:** junk-take filter, weighted overall score, grounded evidence rows.
+- **Signature IP:** the `soundsLikeMe` axis and the Take 1↔Take 2 diff view.
 
 ## 5. Open decisions
 
