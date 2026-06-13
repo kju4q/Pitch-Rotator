@@ -1,6 +1,7 @@
 # PitchRotator — Demo Spec
 
-> Working spec for the hackathon submission demo and the evaluation screen.
+> Working spec for the hackathon submission demo. The evaluation screen's visual
+> design is owned separately (see §4).
 > Source of truth for scenario data: `src/lib/pitchrotator-demo.ts`.
 > Product framing: `README.md`.
 
@@ -63,16 +64,19 @@ Sui), **Walrus** (publishes the signed encrypted artifact), **ENS** (text record
 pins the blob id + receipt hash to the founder-agent name). Confirmed stack and
 rationale in `docs/sponsor-research.md`.
 
-## 4. Evaluation screen (deep spec)
+## 4. Evaluation screen — product intent + data contract
+
+> **The visual and UX design of this screen is owned separately (colleague).**
+> This section fixes only what the rest of the build depends on: the product
+> intent, the scoring axes, and the `score-rehearsal` API contract. Layout,
+> wireframe, and visual treatment are the design owner's call.
 
 The evaluation screen is screen **7's output** — it appears after a take is
-recorded and scored. It is the proof of "improvement," and it carries the one
-axis no generic pitch tool has.
+recorded and scored, and it carries the one axis no generic pitch tool has.
 
-### 4.1 Headline
+### 4.1 Headline metric
 
-One number, full-width: **"Sounds like me — 89"** with a Take 1 → Take 2 delta
-(`+35`). This is the metric the whole product is organized around
+**"Sounds like me"** is the headline metric, shown with a Take 1 → Take 2 delta
 (`RehearsalScore.soundsLikeMe`, the headline per `README.md`).
 
 ### 4.2 The six axes
@@ -106,39 +110,15 @@ verdict, e.g.:
 - `specificity` · *"reads Claude exports, notes, voice memos"* · ✓ concrete
   mechanism
 
-### 4.4 Take 1 vs Take 2 diff
+### 4.4 Take 1 vs Take 2 comparison
 
-The improvement story is the demo's third act. Show both takes side by side:
-six mini bars per take, the headline delta, and a one-line synthesis
-("Take 2 leaned on your own phrasing and cut the hedges"). A junk-take guard
-still applies — a throwaway take scores 1 and is labelled, which protects the
-metric's credibility live.
+The improvement story is the demo's third act: the two takes are compared so the
+delta is visible (e.g. "Take 2 leaned on your own phrasing and cut the hedges").
+A junk-take guard still applies — a throwaway take scores 1 and is labelled,
+which protects the metric's credibility live. Visual treatment is the design
+owner's call.
 
-### 4.5 Wireframe
-
-```
-┌──────────────────────────────────────────────────────────┐
-│  SOUNDS LIKE ME                                           │
-│        89   ▲ +35 from Take 1                             │
-│  ────────────────────────────────────────────────────    │
-│  soundsLikeMe  ████████▉  89    specificity  ████████  84 │
-│  clarity       ████████▌  86   demoMomentum  ████████  82 │
-│  trust         ████████▍  85   audienceFit   ████████  83 │
-│  ────────────────────────────────────────────────────    │
-│  WHY                                                      │
-│  ✓ soundsLikeMe  "...out of workflow hell"  your phrase   │
-│  ✗ soundsLikeMe  "leveraging AI to optimize"  forbidden   │
-│  ✓ specificity   "reads Claude exports, notes"  concrete  │
-│  ────────────────────────────────────────────────────    │
-│  TAKE 1            →            TAKE 2                     │
-│  ▁▃▂▃▂▃ avg 54                ▇▇▆▇▆▇ avg 88               │
-│  "leaned on your own phrasing and cut the hedges"         │
-│  ────────────────────────────────────────────────────    │
-│  [ Record another take ]   [ Lock pitch → Privacy Receipt ]│
-└──────────────────────────────────────────────────────────┘
-```
-
-### 4.6 Data contract
+### 4.5 Data contract
 
 A Next.js v16 route handler at `app/api/score-rehearsal/route.ts`. The scoring
 "source" is the founder's own material — the Founder Voice Profile and the
@@ -158,18 +138,18 @@ rewritten pitch they're delivering.
 ```
 
 **Response** (200): the six `RehearsalScore` axes + `evidence[]` + an overall,
-plus a junk-take guard. Server scores soundsLikeMe / specificity / clarity-content
-/ trust / audienceFit with Claude Haiku 4.5; client contributes demoMomentum +
+plus a junk-take guard. Server scores soundsLikeMe / specificity / clarity /
+trust / audienceFit with Claude Haiku 4.5; client contributes demoMomentum +
 filler signal and merges.
 
-### 4.7 Engine components
+### 4.6 Engine components
 
 - **Server scoring:** Claude Haiku 4.5 against a content rubric (specificity,
   grounding, audience fit) plus the `soundsLikeMe` voice-profile match.
 - **Client signals:** demoMomentum (words/min, pause detection) and filler
   density from Deepgram (`filler_words=true`).
 - **Guards:** junk-take filter, weighted overall score, grounded evidence rows.
-- **Signature IP:** the `soundsLikeMe` axis and the Take 1↔Take 2 diff view.
+- **Signature IP:** the `soundsLikeMe` axis and the Take 1↔Take 2 comparison.
 
 ## 5. Open decisions
 
@@ -181,4 +161,3 @@ filler signal and merges.
 3. **Scoring source of truth** — for the demo, do we call Claude live or play
    back `rehearsalScores`? Recommend: live for soundsLikeMe (the wow), canned
    fallback so a flaky network never breaks the 4-minute run.
-```
