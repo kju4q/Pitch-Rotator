@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PITCH // VITAL SIGNS — Evaluation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;400;700&family=Inter:wght@300;600&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #030508;
+            --text-main: #ffffff;
+            --text-dim: #4a5568;
+            --accent-cyan: #00f3ff;
+            --accent-red: #ff2a2a;
+            --accent-green: #00ff66;
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-sans: 'Inter', sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; cursor: crosshair; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-mono);
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        #scroll-container { height: 600vh; width: 100%; position: relative; z-index: 1; }
+
+        #webgl-container {
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 0; pointer-events: none;
+        }
+
+        /* ---------- HUD telemetry ---------- */
+        .hud-layer {
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 10; pointer-events: none;
+            padding: 2.5rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto 1fr auto;
+        }
+        .hud-text {
+            font-size: 10px; text-transform: uppercase;
+            letter-spacing: 0.2em; line-height: 1.6;
+            color: var(--text-dim);
+        }
+        .hud-text strong { color: var(--text-main); font-weight: 400; }
+        .hud-text span.cyan { color: var(--accent-cyan); }
+        .hud-text span.red { color: var(--accent-red); }
+        .hud-text span.green { color: var(--accent-green); }
+
+        .hud-top-left { grid-column: 1; grid-row: 1; align-self: start; justify-self: start; }
+        .hud-top-right { grid-column: 2; grid-row: 1; align-self: start; justify-self: end; text-align: right; }
+        .hud-bottom-left { grid-column: 1; grid-row: 3; align-self: end; justify-self: start; }
+        .hud-bottom-right { grid-column: 2; grid-row: 3; align-self: end; justify-self: end; text-align: right; }
+
+        /* junk-take pill (interactive) */
+        .junk-toggle {
+            pointer-events: auto;
+            margin-top: 0.75rem;
+            display: inline-block;
+            font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
+            color: var(--text-dim);
+            border: 1px solid rgba(255,255,255,0.12);
+            padding: 0.3rem 0.7rem;
+            transition: all 0.3s ease;
+        }
+        .junk-toggle:hover { color: var(--text-main); border-color: var(--accent-red); }
+        body.junk .junk-toggle { color: var(--accent-red); border-color: var(--accent-red); }
+
+        .scan-line {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 2px;
+            background: rgba(0, 243, 255, 0.1);
+            z-index: 20; animation: scan 8s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes scan {
+            0% { transform: translateY(-10vh); }
+            100% { transform: translateY(110vh); }
+        }
+
+        /* ---------- narrative / evidence beats ---------- */
+        .narrative-container {
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 5; pointer-events: none;
+        }
+        .narrative-block {
+            position: absolute; opacity: 0;
+            transition: opacity 0.8s cubic-bezier(0.16,1,0.3,1), transform 1s cubic-bezier(0.16,1,0.3,1);
+            display: flex; flex-direction: column; gap: 0.6rem;
+            max-width: 320px;
+            background: rgba(3,5,8,0.6);
+            backdrop-filter: blur(16px) saturate(140%);
+            -webkit-backdrop-filter: blur(16px) saturate(140%);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px; padding: 1.4rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03);
+        }
+        #nar-intro    { top: 15%; right: 5%; align-items: flex-end; text-align: right; transform: translateY(0) scale(0.95); }
+        #nar-dip      { top: 50%; left: 5%; align-items: flex-start; text-align: left; transform: translateY(-50%) scale(0.95); }
+        #nar-recovery { top: 50%; right: 5%; align-items: flex-end; text-align: right; transform: translateY(-50%) scale(0.95); }
+        #nar-peak     { top: 50%; left: 5%; align-items: flex-start; text-align: left; transform: translateY(-50%) scale(0.95); }
+
+        #nar-intro.active { opacity: 1; transform: translateY(0) scale(1); }
+        #nar-dip.active, #nar-recovery.active, #nar-peak.active { opacity: 1; transform: translateY(-50%) scale(1); }
+        #nar-intro.pre { transform: translateY(30px) scale(0.95); }
+        #nar-dip.pre, #nar-recovery.pre, #nar-peak.pre { transform: translateY(calc(-50% + 30px)) scale(0.95); }
+        #nar-intro.post { transform: translateY(-30px) scale(1.05); }
+        #nar-dip.post, #nar-recovery.post, #nar-peak.post { transform: translateY(calc(-50% - 30px)) scale(1.05); }
+
+        .n-axis {
+            font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase;
+            color: var(--text-dim);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 0.35rem 0.8rem; backdrop-filter: blur(4px); width: fit-content;
+        }
+        .n-delta { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; color: var(--text-dim); }
+        .n-delta b { font-weight: 700; }
+        .n-title {
+            font-family: var(--font-sans); font-weight: 300;
+            font-size: 1.6rem; letter-spacing: -0.02em; line-height: 1.15;
+            color: var(--text-main); text-transform: none;
+        }
+        .n-quote {
+            font-family: var(--font-sans); font-weight: 300; font-style: italic;
+            font-size: 0.8rem; line-height: 1.45; color: #aeb6c2;
+        }
+        .n-verdict { font-size: 9px; letter-spacing: 0.12em; line-height: 1.5; color: var(--text-dim); text-transform: uppercase; }
+        #nar-dip .n-title  { color: var(--accent-red);   text-shadow: 0 0 40px rgba(255,42,42,0.3); }
+        #nar-peak .n-title { color: var(--accent-green); text-shadow: 0 0 40px rgba(0,255,102,0.3); }
+
+        /* ---------- six-axis panel ---------- */
+        .axes-panel {
+            position: fixed; bottom: 8%; left: 50%; transform: translateX(-50%) translateY(20px);
+            z-index: 14; width: min(680px, 90vw);
+            display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem 1.5rem;
+            padding: 1.25rem 1.5rem;
+            background: rgba(3,5,8,0.55);
+            backdrop-filter: blur(18px) saturate(140%);
+            -webkit-backdrop-filter: blur(18px) saturate(140%);
+            border: 1px solid rgba(255,255,255,0.06); border-radius: 14px;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.16,1,0.3,1);
+        }
+        .axes-panel.active { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .axis-row { display: flex; flex-direction: column; gap: 0.3rem; }
+        .axis-name { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim); display: flex; justify-content: space-between; }
+        .axis-name b { color: var(--text-main); font-weight: 400; }
+        .axis-track { position: relative; height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+        .axis-fill-1 { position: absolute; top: 0; left: 0; height: 100%; background: var(--text-dim); opacity: 0.6; width: 0; transition: width 1.2s cubic-bezier(0.16,1,0.3,1); }
+        .axis-fill-2 { position: absolute; top: 0; left: 0; height: 100%; background: var(--accent-cyan); box-shadow: 0 0 12px var(--accent-cyan); width: 0; transition: width 1.2s cubic-bezier(0.16,1,0.3,1) 0.15s; }
+        .axis-hero .axis-fill-2 { background: var(--accent-green); box-shadow: 0 0 14px var(--accent-green); }
+        .axis-hero .axis-name b { color: var(--accent-green); }
+
+        /* ---------- verdict ---------- */
+        .verdict-container {
+            position: fixed; bottom: 15%; left: 50%; transform: translateX(-50%);
+            z-index: 15; opacity: 0; pointer-events: none;
+            transition: opacity 1s ease 0.4s;
+            display: flex; flex-direction: column; align-items: center; gap: 1.5rem; text-align: center;
+        }
+        .verdict-container.active { opacity: 1; pointer-events: auto; }
+        .verdict-kicker { font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--accent-green); }
+        .verdict-metric { font-size: 11px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--text-dim); }
+        .verdict-delta {
+            font-family: var(--font-sans); font-size: 5rem; font-weight: 600; letter-spacing: -0.04em; line-height: 1;
+            display: flex; align-items: baseline; gap: 1.5rem;
+        }
+        .verdict-delta .t1 { color: var(--text-dim); }
+        .verdict-delta .arrow { font-size: 2.5rem; color: var(--text-dim); }
+        .verdict-delta .t2 {
+            background: linear-gradient(to bottom, #00ff66, #00b347);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 60px rgba(0,255,102,0.25);
+        }
+        .cta-row { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+        .cta-button {
+            background: transparent; border: 1px solid rgba(255,255,255,0.2); color: var(--text-main);
+            font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+            padding: 1rem 2.25rem; position: relative; overflow: hidden; transition: all 0.4s ease;
+        }
+        .cta-button.primary { border-color: rgba(0,255,102,0.5); }
+        .cta-button::before {
+            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+            background: var(--text-main); transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); z-index: -1;
+        }
+        .cta-button.primary::before { background: var(--accent-green); }
+        .cta-button:hover { color: var(--bg-color); border-color: var(--text-main); cursor: pointer; }
+        .cta-button.primary:hover { border-color: var(--accent-green); }
+        .cta-button:hover::before { transform: translateX(100%); }
+
+        /* junk-take verdict swap */
+        body.junk .verdict-delta .t1,
+        body.junk .verdict-delta .arrow { display: none; }
+        body.junk .verdict-delta .t2 {
+            background: linear-gradient(to bottom, #ff2a2a, #b30000);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .junk-banner {
+            display: none; font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;
+            color: var(--accent-red); border: 1px solid rgba(255,42,42,0.4); padding: 0.5rem 1rem;
+        }
+        body.junk .junk-banner { display: block; }
+        body.junk .verdict-kicker { color: var(--accent-red); }
+
+        .scroll-indicator {
+            position: fixed; bottom: 2.5rem; left: 50%; transform: translateX(-50%);
+            display: flex; flex-direction: column; align-items: center; gap: 1rem;
+            z-index: 10; opacity: 1; transition: opacity 0.5s ease;
+        }
+        .scroll-indicator.hidden { opacity: 0; }
+        .mouse-icon { width: 1px; height: 30px; background: linear-gradient(to bottom, var(--text-main), transparent); animation: drop 1.5s infinite; }
+        @keyframes drop {
+            0% { transform: translateY(-10px); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateY(10px); opacity: 0; }
+        }
+        .hud-value-dyn { display: inline-block; min-width: 60px; }
+    </style>
+</head>
+<body>
+
+    <div id="webgl-container"></div>
+    <div id="scroll-container"></div>
+    <div class="scan-line"></div>
+
+    <!-- ---------- HUD ---------- -->
+    <div class="hud-layer">
+        <div class="hud-top-left hud-text">
+            <div>SYS.OP // <strong>REHEARSAL.EVAL</strong></div>
+            <div>STATUS: <span class="cyan">MONITORING</span></div>
+            <div style="margin-top: 1rem; opacity: 0.5;">[ PITCH_ID: PITCHROTATOR-07 ]</div>
+            <div class="junk-toggle" id="junk-toggle">⟂ Simulate throwaway take</div>
+        </div>
+
+        <div class="hud-top-right hud-text">
+            <div>SIGNATURE METRIC</div>
+            <div><strong>"SOUNDS LIKE ME"</strong></div>
+            <div style="margin-top: 1rem; opacity: 0.5;">TAKE 1 → TAKE 2</div>
+        </div>
+
+        <div class="hud-bottom-left hud-text">
+            <div>COORD_X: <span class="hud-value-dyn" id="hud-x">0.000</span></div>
+            <div>COORD_Y: <span class="hud-value-dyn" id="hud-y">0.000</span></div>
+            <div>COORD_Z: <span class="hud-value-dyn" id="hud-z">0.000</span></div>
+        </div>
+
+        <div class="hud-bottom-right hud-text">
+            <div>CONVICTION_TELEMETRY: <strong>ACTIVE</strong></div>
+            <div>SIGNAL: <span class="cyan" id="hud-hr">84</span></div>
+        </div>
+    </div>
+
+    <div class="scroll-indicator hud-text" id="scroll-hint">
+        <span>INITIATE SCROLL</span>
+        <div class="mouse-icon"></div>
+    </div>
+
+    <!-- ---------- evidence beats (grounded: axis + quote + verdict) ---------- -->
+    <div class="narrative-container">
+        <div class="narrative-block pre" id="nar-intro">
+            <div class="n-axis">Baseline · Take 1</div>
+            <div class="n-title">Establishing the baseline.</div>
+            <div class="n-verdict">Audience engagement nominal. Capturing your natural voice.</div>
+        </div>
+
+        <div class="narrative-block pre" id="nar-dip">
+            <div class="n-axis">Clarity · 61 → 86</div>
+            <div class="n-delta"><b style="color:var(--accent-red)">▼</b> Take 1 lost the room here</div>
+            <div class="n-title">Filler broke the line.</div>
+            <div class="n-quote">"There are a bunch of films that are, uh, uh, inspired by video games…"</div>
+            <div class="n-verdict">Cut filler words — replace each with a short pause.</div>
+        </div>
+
+        <div class="narrative-block pre" id="nar-recovery">
+            <div class="n-axis">Specificity · 48 → 84</div>
+            <div class="n-delta"><b style="color:var(--accent-cyan)">▲</b> Recovered in Take 2</div>
+            <div class="n-title">Concrete claim landed.</div>
+            <div class="n-quote">"Publishers decide format — theatrical, direct-to-video, or a series."</div>
+            <div class="n-verdict">Concrete claims replaced hedge phrases.</div>
+        </div>
+
+        <div class="narrative-block pre" id="nar-peak">
+            <div class="n-axis">Sounds like me · 54 → 89</div>
+            <div class="n-delta"><b style="color:var(--accent-green)">▲</b> Maximum resonance</div>
+            <div class="n-title">It sounded like you.</div>
+            <div class="n-quote">"I'm trying to get people out of workflow hell."</div>
+            <div class="n-verdict">Your own phrasing carried the close. Signature metric peaked.</div>
+        </div>
+    </div>
+
+    <!-- ---------- six-axis panel ---------- -->
+    <div class="axes-panel" id="axes-panel"></div>
+
+    <!-- ---------- verdict ---------- -->
+    <div class="verdict-container" id="verdict">
+        <div class="verdict-kicker">// Evaluation complete //</div>
+        <div class="junk-banner">Throwaway take detected — scored 1. Not a real attempt.</div>
+        <div class="verdict-metric">Sounds like me</div>
+        <div class="verdict-delta">
+            <span class="t1" id="v-t1">54</span>
+            <span class="arrow">→</span>
+            <span class="t2" id="v-t2">89</span>
+        </div>
+        <div class="cta-row">
+            <button class="cta-button" id="cta-record">Record another take</button>
+            <button class="cta-button primary" id="cta-lock">Lock pitch → Privacy Receipt</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // ---------------------------------------------------------------
+        // DATA — the score-rehearsal contract (issue #5). Six axes, Take 1 → Take 2.
+        // Swap this object for the live POST /api/score-rehearsal response.
+        // ---------------------------------------------------------------
+        const REHEARSAL = {
+            headlineAxis: "soundsLikeMe",
+            junkTake: false,
+            axes: [
+                { key: "soundsLikeMe", label: "Sounds like me", take1: 54, take2: 89, hero: true },
+                { key: "specificity",  label: "Specificity",    take1: 48, take2: 84 },
+                { key: "clarity",      label: "Clarity",         take1: 61, take2: 86 },
+                { key: "demoMomentum", label: "Demo momentum",   take1: 50, take2: 82 },
+                { key: "trust",        label: "Trust",           take1: 57, take2: 85 },
+                { key: "audienceFit",  label: "Audience fit",    take1: 52, take2: 83 },
+            ],
+        };
+
+        // ---- render six-axis panel from data ----
+        const axesPanel = document.getElementById('axes-panel');
+        REHEARSAL.axes.forEach(a => {
+            const row = document.createElement('div');
+            row.className = 'axis-row' + (a.hero ? ' axis-hero' : '');
+            row.innerHTML = `
+                <div class="axis-name"><span>${a.label}</span><b data-score>${a.take2}</b></div>
+                <div class="axis-track">
+                    <div class="axis-fill-1" data-f1></div>
+                    <div class="axis-fill-2" data-f2></div>
+                </div>`;
+            row.dataset.t1 = a.take1; row.dataset.t2 = a.take2;
+            axesPanel.appendChild(row);
+        });
+
+        function paintAxes(junk) {
+            axesPanel.querySelectorAll('.axis-row').forEach(row => {
+                const t1 = +row.dataset.t1;
+                const t2 = junk ? 10 : +row.dataset.t2; // junk take ≈ 1/10
+                row.querySelector('[data-f1]').style.width = t1 + '%';
+                row.querySelector('[data-f2]').style.width = t2 + '%';
+                row.querySelector('[data-score]').textContent = junk ? 1 : Math.round(t2 / 10 * 10) / 10;
+            });
+        }
+
+        // ---- junk-take toggle ----
+        const junkToggle = document.getElementById('junk-toggle');
+        let junk = REHEARSAL.junkTake;
+        junkToggle.addEventListener('click', () => {
+            junk = !junk;
+            document.body.classList.toggle('junk', junk);
+            document.getElementById('v-t2').textContent = junk ? '1' : '89';
+            paintAxes(junk);
+        });
+
+        // ---- CTAs ----
+        document.getElementById('cta-record').addEventListener('click', () => {
+            window.parent.postMessage({ type: 'pitchrotator:record-take' }, '*');
+        });
+        document.getElementById('cta-lock').addEventListener('click', () => {
+            window.parent.postMessage({ type: 'pitchrotator:lock-pitch' }, '*');
+        });
+
+        // ---------------------------------------------------------------
+        // WEBGL — EKG "vital signs" line. Camera flies the curve on scroll.
+        // ---------------------------------------------------------------
+        const container = document.getElementById('webgl-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x030508, 0.002);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        // The waveform: dips = lost the room, peaks = landed. Mirrors the beats above.
+        const curvePoints = [
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 2, -50),
+            new THREE.Vector3(20, -35, -120),   // dip  → clarity (filler)
+            new THREE.Vector3(-10, 5, -200),    // recovery → specificity
+            new THREE.Vector3(-30, 40, -280),   // peak → sounds like me
+            new THREE.Vector3(0, 10, -350),
+            new THREE.Vector3(0, 0, -450)
+        ];
+        const curve = new THREE.CatmullRomCurve3(curvePoints);
+        curve.tension = 0.5;
+
+        const vertexShader = `
+            varying vec3 vWorldPosition; varying vec3 vNormal; varying vec3 vViewPosition;
+            void main() {
+                vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                vWorldPosition = worldPosition.xyz;
+                vNormal = normalize(normalMatrix * normal);
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                vViewPosition = -mvPosition.xyz;
+                gl_Position = projectionMatrix * mvPosition;
+            }`;
+        const fragmentShader = `
+            uniform vec3 colorRed; uniform vec3 colorCyan; uniform vec3 colorGreen;
+            varying vec3 vWorldPosition; varying vec3 vNormal; varying vec3 vViewPosition;
+            void main() {
+                float y = vWorldPosition.y;
+                vec3 baseColor;
+                if (y < 0.0) { float t = smoothstep(0.0, -35.0, y); baseColor = mix(colorCyan, colorRed, t); }
+                else { float t = smoothstep(0.0, 40.0, y); baseColor = mix(colorCyan, colorGreen, t); }
+                vec3 normal = normalize(vNormal);
+                vec3 viewDir = normalize(vViewPosition);
+                float fresnel = clamp(1.0 - dot(viewDir, normal), 0.0, 1.0);
+                fresnel = pow(fresnel, 2.0);
+                float core = pow(clamp(dot(viewDir, normal), 0.0, 1.0), 3.0);
+                vec3 finalColor = baseColor * (fresnel * 1.5 + core * 2.0);
+                gl_FragColor = vec4(finalColor, 1.0);
+            }`;
+        const uniforms = {
+            colorRed: { value: new THREE.Color(0xff2a2a) },
+            colorCyan: { value: new THREE.Color(0x00f3ff) },
+            colorGreen: { value: new THREE.Color(0x00ff66) }
+        };
+        const tubeMaterial = new THREE.ShaderMaterial({
+            vertexShader, fragmentShader, uniforms,
+            blending: THREE.AdditiveBlending, transparent: true, depthWrite: false
+        });
+        const coreMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+
+        const tubeGeometry = new THREE.TubeGeometry(curve, 300, 1.5, 16, false);
+        scene.add(new THREE.Mesh(tubeGeometry, tubeMaterial));
+        const coreGeometry = new THREE.TubeGeometry(curve, 300, 0.4, 8, false);
+        scene.add(new THREE.Mesh(coreGeometry, coreMaterial));
+
+        const particleCount = 2000;
+        const particleGeometry = new THREE.BufferGeometry();
+        const particlePositions = new Float32Array(particleCount * 3);
+        for (let i = 0; i < particleCount * 3; i += 3) {
+            particlePositions[i] = (Math.random() - 0.5) * 150;
+            particlePositions[i+1] = (Math.random() - 0.5) * 150;
+            particlePositions[i+2] = (Math.random() * -500);
+        }
+        particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+        const particles = new THREE.Points(particleGeometry, new THREE.PointsMaterial({
+            color: 0x4a5568, size: 0.5, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending
+        }));
+        scene.add(particles);
+
+        camera.position.set(20, 10, 40);
+        camera.lookAt(curve.getPointAt(0.1));
+
+        const hX = document.getElementById('hud-x');
+        const hY = document.getElementById('hud-y');
+        const hZ = document.getElementById('hud-z');
+        const hHR = document.getElementById('hud-hr');
+        const scrollHint = document.getElementById('scroll-hint');
+        const narratives = [
+            document.getElementById('nar-intro'),
+            document.getElementById('nar-dip'),
+            document.getElementById('nar-recovery'),
+            document.getElementById('nar-peak')
+        ];
+        const verdict = document.getElementById('verdict');
+
+        let scrollProgress = 0, targetProgress = 0, axesShown = false;
+        const lerp = (a, b, f) => a + (b - a) * f;
+
+        window.addEventListener('scroll', () => {
+            const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+            targetProgress = window.scrollY / maxScroll;
+            if (targetProgress > 0.01) scrollHint.classList.add('hidden');
+        });
+
+        function updateOverlays(progress) {
+            const zones = [
+                { el: narratives[0], start: 0.02, end: 0.15 },
+                { el: narratives[1], start: 0.25, end: 0.40 },
+                { el: narratives[2], start: 0.50, end: 0.65 },
+                { el: narratives[3], start: 0.75, end: 0.88 }
+            ];
+            zones.forEach(z => {
+                if (progress >= z.start && progress <= z.end) { z.el.classList.remove('pre','post'); z.el.classList.add('active'); }
+                else if (progress < z.start) { z.el.classList.remove('active','post'); z.el.classList.add('pre'); }
+                else { z.el.classList.remove('active','pre'); z.el.classList.add('post'); }
+            });
+
+            // six-axis panel rides in with the peak; verdict closes
+            if (progress > 0.72) { axesPanel.classList.add('active'); if (!axesShown) { axesShown = true; paintAxes(junk); } }
+            else { axesPanel.classList.remove('active'); }
+
+            if (progress > 0.95) { verdict.classList.add('active'); axesPanel.classList.remove('active'); }
+            else { verdict.classList.remove('active'); }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            scrollProgress = lerp(scrollProgress, targetProgress, 0.05);
+
+            if (scrollProgress < 0.1) {
+                const tLocal = scrollProgress / 0.1;
+                const startPos = new THREE.Vector3(20, 10, 40);
+                const tubeStartPos = curve.getPointAt(0);
+                camera.position.copy(new THREE.Vector3().lerpVectors(startPos, new THREE.Vector3(tubeStartPos.x, tubeStartPos.y + 2, tubeStartPos.z + 10), tLocal));
+                camera.lookAt(curve.getPointAt(tLocal * 0.1));
+            } else if (scrollProgress < 0.9) {
+                const curveT = (scrollProgress - 0.1) / 0.8;
+                const point = curve.getPointAt(curveT);
+                const tangent = curve.getTangentAt(curveT);
+                const cameraPos = new THREE.Vector3().copy(point).add(new THREE.Vector3(-2, 3, 5));
+                camera.position.lerp(cameraPos, 0.1);
+                const lookAtPoint = curve.getPointAt(Math.min(curveT + 0.05, 1.0));
+                const currentLookAt = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).add(camera.position);
+                currentLookAt.lerp(lookAtPoint, 0.1);
+                camera.lookAt(currentLookAt);
+
+                hX.innerText = point.x.toFixed(3);
+                hY.innerText = point.y.toFixed(3);
+                hZ.innerText = point.z.toFixed(3);
+                hHR.innerText = Math.floor(75 + Math.abs(tangent.y) * 100);
+                hHR.className = point.y < -10 ? 'red' : (point.y > 20 ? 'green' : 'cyan');
+            } else {
+                const endPos = curve.getPointAt(1.0);
+                camera.position.lerp(new THREE.Vector3(endPos.x + 30, endPos.y + 20, endPos.z + 50), 0.05);
+                const currentLookAt = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).add(camera.position);
+                currentLookAt.lerp(curve.getPointAt(0.9), 0.05);
+                camera.lookAt(currentLookAt);
+            }
+
+            particles.rotation.z += 0.0005;
+            updateOverlays(scrollProgress);
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
