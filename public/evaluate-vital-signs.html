@@ -221,7 +221,21 @@
             z-index: 10; opacity: 1; transition: opacity 0.5s ease;
         }
         .scroll-indicator.hidden { opacity: 0; }
-        .mouse-icon { width: 1px; height: 30px; background: linear-gradient(to bottom, var(--text-main), transparent); animation: drop 1.5s infinite; }
+        /* Make the scroll hint readable but quiet — cyan, lightly glowing,
+           gently breathing so it draws the eye without shouting. */
+        .scroll-indicator span {
+            color: var(--accent-cyan);
+            font-size: 11px;
+            letter-spacing: 0.45em;
+            text-indent: 0.45em; /* offset the trailing tracking so it stays centered */
+            text-shadow: 0 0 12px rgba(0, 243, 255, 0.55);
+            animation: hint-breathe 2.4s ease-in-out infinite;
+        }
+        @keyframes hint-breathe {
+            0%, 100% { opacity: 0.45; }
+            50% { opacity: 1; }
+        }
+        .mouse-icon { width: 1px; height: 30px; background: linear-gradient(to bottom, var(--accent-cyan), transparent); box-shadow: 0 0 10px rgba(0, 243, 255, 0.5); animation: drop 1.5s infinite; }
         @keyframes drop {
             0% { transform: translateY(-10px); opacity: 0; }
             50% { opacity: 1; }
