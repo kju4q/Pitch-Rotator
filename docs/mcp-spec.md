@@ -1,10 +1,9 @@
 # PitchRotator — Founder-Agent MCP Spec
 
-> The MCP that reads the founder's brain and reconstructs their pitch — then
-> closes the loop: prep → record → evaluate → re-prep.
-> Grounded in the `mcp-server/` scaffold (`types.ts`, `storage.ts`,
-> `attestation.ts`, `.env.example`) and the web data model
-> (`src/lib/pitchrotator-demo.ts`).
+> An MCP **server running inside a TEE** that reads the founder's brain and
+> reconstructs their pitch — then closes the loop: prep → record → evaluate →
+> re-prep. Mirrors the Router / Teleport confidential-MCP design: **attest before
+> send.** Grounded in the `mcp-server/` scaffold and `src/lib/pitchrotator-demo.ts`.
 
 ## 1. End goal
 
@@ -18,51 +17,61 @@ prepped pitch, **record** themselves practicing it, we **evaluate** the take, an
 we **re-prep** an improved pitch from that recording — and repeat. That loop is
 the product.
 
-## 2. Architecture — two components
+## 2. Architecture — MCP server in a TEE; the founder's Claude is the client
+
+Mirror of Router/Teleport's confidential-MCP design: the MCP **server runs inside
+a secure enclave**, and the AI client (the founder's Claude) **remotely attests**
+the enclave is genuine, unmodified, published code **before it sends anything**.
+That turns "trust the host" into "math the client checks."
 
 ```
-[founder's laptop]                         [remote TEE enclave]            [web app]
- Local redactor MCP                         mcp-server/ (Phala TDX)         7 screens
- ─ reads README + context in place          ─ receives ONLY redacted        ─ presents
- ─ redacts entities AUTOMATICALLY   ──▶       excerpts                  ──▶   profile,
- ─ stages redacted excerpts                 ─ model calls (Opus)              pitch,
-   (raw bytes never leave disk)             ─ attested Privacy Receipt        evaluation
-                                                    │ TDX quote                 │
-       no founder curation                          └────────── publish ────────┘
-       trust = attested receipt                       Seal → Walrus → ENS (Dynamic-signed)
+[founder's environment]                 [MCP server in TEE — Phala/dstack TDX]     [outside]
+ Founder's Claude (MCP client)                                                       web app
+ + auto-loaded default prompt            1. serve attestation (TDX quote)            ─ reads
+   1. ATTEST the enclave  ◀───────────────  genuine + unmodified code                  redacted
+   2. scrape messy env (files,                                                         ─ Voice
+      repos, exports) — local access     2. receive raw — ONLY after client attests     Profile,
+   3. send raw ───────────────────────▶  3. REDACT → write redacted to DB               pitch,
+                                             (operator can't read raw)                   eval,
+                                          4. attested Privacy Receipt (core)             re-prep
 ```
 
-### 2.1 Local redactor MCP (founder's laptop)
-- Reads README + `.txt/.md/.json` + voice transcript **in place**.
-- Detects + **redacts sensitive entities automatically** (rules/regex + optional
-  small local model). The founder does **not** approve or reject excerpts.
-- Stages redacted excerpts for the enclave. Raw bytes never leave the disk.
-- Exposes the tool surface (§4) to the founder's Claude over stdio / localhost.
+### 2.1 MCP client — the founder's Claude (their environment)
+- The MCP installs with an **auto-loaded default prompt** (like Router's
+  `MCP_SKILL_INSTRUCTIONS`).
+- The prompt drives the founder's Claude to **scrape/read the messy environment**
+  — local files, repos, Claude exports, notes — using the founder's own local
+  access (which a remote sandbox can't reach).
+- **Attest before send:** Claude verifies the enclave's TDX quote (genuine,
+  unmodified, published image) **before** transmitting any raw context.
 
-### 2.2 Remote TEE enclave (`mcp-server/`)
-- Receives **only** redacted excerpts — raw text is *structurally* impossible
-  (`types.ts`: any excerpt missing `redactedText` is rejected).
-- Model calls (OpenRouter → `claude-opus-4-8`, per `.env.example`) → Founder
-  Voice Profile, rewritten pitch, take evaluation, and the re-prepped pitch.
-- Emits a **hardware-attested Privacy Receipt** (Phala/dstack TDX): the receipt
-  hash is bound into the TDX quote so a verifier can confirm it came from the
-  published enclave image, not a "trust me" server (`attestation.ts`).
-- In-enclave memory session store, `founderRef` scoping (`storage.ts`).
+### 2.2 MCP server — inside the TEE (`mcp-server/`)
+- Runs in a Phala/dstack TDX enclave (`attestation.ts` produces the quote; the
+  dstack deploy is the host).
+- Receives raw **only after the client has attested**, then **redacts and writes
+  only redacted data to the DB**. Even the operator can't read raw.
+- Emits the **attested core of the Privacy Receipt** — the receipt hash bound into
+  the TDX quote, proving redaction happened in the published enclave.
+- In-enclave memory session store, `founderRef` scoping. The enclave does **only**
+  redact + ingest + attest. Nothing else.
 
-## 3. Privacy model — automatic redaction + attested proof
+### 2.3 Everything else runs outside the TEE
+Voice Profile, first pitch, evaluation, and the re-prep loop all consume
+**redacted** data, so they run **outside** the enclave on cheap normal compute.
+The enclave is a scalpel for the one moment raw exists, not a blanket.
 
-No founder-facing approval gate. The reason products usually make you approve
-each item is they can't *prove* what they send — so they make you the gate.
-PitchRotator's enclave produces a **hardware proof** that raw never left and only
-redacted excerpts were used, so curation is unnecessary.
+## 3. Privacy model — attest before send (Router pattern)
 
-- **Redaction is automatic and local** — entity detection + user-tunable regex
-  patterns replace matches with `[REDACTED]` before anything is staged. Bias
-  toward stripping *more*.
-- **Raw never leaves the laptop.**
-- **Trust is the attested Privacy Receipt** — what was masked is summarized there
-  at the end, with a TDX quote a verifier can check. The founder never reviews
-  excerpts mid-flow.
+- **The client checks the math first.** The founder's Claude verifies the enclave
+  is genuine + running the published code before sending raw. Privacy is not
+  "trust the server" — it's "your client verified it."
+- **Redaction happens inside the enclave**; only redacted data is written to the
+  DB. Raw exists only transiently inside the attested enclave.
+- **The redaction agent is the entire trust boundary** — so it does redact →
+  re-verify before release (defense in depth) and is relentlessly tested (§7).
+- **Honesty:** the enclave is claimed only when real. `insecure-dev` mode
+  (`ALLOW_INSECURE_NO_TEE`) is explicit, never silent — mirroring Router's *"we
+  won't tell you the enclave exists before it does."*
 
 ## 4. MCP tool surface — the loop
 
@@ -71,76 +80,69 @@ without copy-paste.
 
 | Tool | Where | Purpose |
 |------|-------|---------|
-| `pitch_ingest` | laptop | "Read my brain" — scan README + context, **auto-redact**, stage redacted excerpts |
-| `pitch_prep` | enclave | Build the Founder Voice Profile + the rewritten pitch (30s / 60s / demo-day) — the pitch the founder **reads** |
-| `pitch_evaluate` | enclave | Score a recorded take (the six `RehearsalScore` axes + grounded evidence) |
-| `pitch_reprep` | enclave | **Redo the pitch for them** — regenerate an improved pitch from the recording transcript + evaluation |
-| `pitch_receipt` | enclave | Return the attested Privacy Receipt (hash, model calls, masked-entity summary, traces, `attestationQuote`) |
+| `pitch_ingest` | client → enclave | Scrape the messy env, **attest**, send raw to the enclave, which **redacts + ingests** |
+| `pitch_prep` | outside | Build the Founder Voice Profile + rewritten pitch (the pitch the founder **reads**) |
+| `pitch_evaluate` | outside | Score a recorded take (six `RehearsalScore` axes + grounded evidence) |
+| `pitch_reprep` | outside | **Redo the pitch** — regenerate from the recording transcript + evaluation |
+| `pitch_receipt` | enclave + outside | Assemble the Privacy Receipt: attested redaction core (enclave) + model-call ledger (outside) |
 
-**The loop:** `pitch_ingest` → `pitch_prep` → *[founder records in web]* →
-`pitch_evaluate` → `pitch_reprep` → *[record again]* → … The evaluation **feeds
-back** into a better pitch; that closing loop is the moat.
+**The loop:** `pitch_ingest` (attest+redact) → `pitch_prep` → *[founder records]* →
+`pitch_evaluate` → `pitch_reprep` → … The evaluation feeds back into a better pitch.
 
-**Behavior model:**
-- **Explicit triggers** ("read my brain", "build my pitch", "rotate my pitch") →
-  immediate ingest.
-- **Proactive offer** at natural moments (founder points at a README / pastes
-  notes) → ask once, drop if declined.
-- **PASSIVE vs ACTIVE mode** — founder can opt out of proactive prompts.
-- **Personal template** — optional paste into `~/.claude/CLAUDE.md`: extra
-  trigger phrases, sources to skip, voice preferences, custom redaction patterns.
+**Behavior model:** explicit triggers ("read my brain") ingest immediately;
+proactive offer once at natural moments; PASSIVE/ACTIVE modes; optional
+`~/.claude/CLAUDE.md` personal template (trigger phrases, sources to skip,
+redaction patterns).
 
 ## 5. Storage & scoping (`mcp-server/src/storage.ts`)
 
-- Pluggable `SessionStore` — **in-enclave memory is the default**, deliberately
-  *not* a network DB (a Postgres connection would carry founder context across
-  the TEE boundary and break the privacy claim). Optional seal-to-disk uses the
-  enclave-only sealing key from `attestation.ts`.
-- **Per-founder `founderRef`** (derived from the session-key hash) is the
-  isolation boundary.
-- A session spans the whole loop (multiple takes), then is discarded.
+- Pluggable `SessionStore` — **in-enclave memory default**, deliberately not a
+  network DB (a connection would carry context across the boundary). Optional
+  seal-to-disk uses the enclave-only sealing key.
+- **Per-founder `founderRef`** (from the session-key hash) is the isolation
+  boundary. The session spans the whole loop, then is discarded.
 
 ## 6. Transport
 
-- Enclave: MCP over **Streamable HTTP** (with SSE fallback), per-session
-  transports keyed by session id + secret; HTTPS at `PUBLIC_URL`.
-- Local redactor MCP: stdio or localhost HTTP for the founder's Claude.
+- MCP over **Streamable HTTP** (SSE fallback), per-session, HTTPS at `PUBLIC_URL`.
+- The client attests the enclave (TDX quote check) as part of connect, before
+  sending raw.
 
-## 7. Scaffold status (`mcp-server/`)
+## 7. The redaction agent is the trust boundary — test it relentlessly
 
-- **Present:** `types.ts` (boundary types, raw-text-impossible by construction —
-  the `redactedText`-or-rejected rule still holds; "approved" now means "passed
-  automatic redaction", not founder-approved), `storage.ts` (`SessionStore` /
-  `MemorySessionStore`), `attestation.ts` (TDX quote + sealing key, explicit
-  `insecure-dev` fallback), `.env.example`.
-- **Missing (build target):** `src/server.ts` (MCP entry + tool handlers), the
-  loop tool implementations, the **local redactor MCP**, the auto-redaction
-  logic.
+Privacy collapses to one component. It must have:
+
+1. **A seeded test corpus** — every entity type (names, emails, companies,
+   secrets, customer names) plus adversarial cases (split across lines, in code
+   comments, foreign scripts, obfuscated).
+2. **The leak invariant** — assert **zero seeded entities survive** the output. A
+   single survivor fails the build.
+3. **Redact → re-verify before release** — after redacting, the enclave re-scans
+   its own output; nothing leaves until a clean re-scan passes.
+4. **Multi-method detection** — regex + NER + an LLM pass, require *all* clear.
+
+Compute is cheap here (no pitch generation in the enclave), so we can afford to
+redact and cross-check two or three times — paranoid where it isn't safe.
 
 ## 8. Honest privacy claims
 
-- Raw files **never leave the laptop**.
-- **Only redacted excerpts** cross into the enclave (type-enforced).
-- The enclave is **hardware-attested**; the receipt hash is bound into a TDX
-  quote a verifier checks against the published enclave measurement.
-- `insecure-dev` mode is **explicit** (`ALLOW_INSECURE_NO_TEE`), never silent.
-- Every model call + generated claim is **recorded and traceable** in the
-  receipt; masked entities are summarized there.
+- Raw is read by the founder's Claude and sent only to an **attested** enclave.
+- **Redaction happens in the enclave**; only redacted data is persisted.
+- The enclave is **hardware-attested**; the receipt hash is bound into a TDX quote
+  the client/verifier checks against the published measurement.
+- `insecure-dev` mode is **explicit**, never silent.
+- Every model call + generated claim is recorded and traceable in the receipt.
 
 ## 9. Connections
 
-- Web UX consumes the MCP output → issue (7-screen UX).
-- Evaluation screen → its own issue.
+- Data tiers + Firestore + the voice-learning loop → `docs/data-model.md`.
 - Receipt publish stack (Seal → Walrus → ENS, Dynamic-signed) →
   `docs/sponsor-research.md`.
-- Data model → `src/lib/pitchrotator-demo.ts` + `mcp-server/src/types.ts`.
+- Web UX → the 7-screen UX issue. Evaluation screen → its own issue.
 
 ## 10. Open questions
 
-1. Local redactor MCP: standalone stdio server, or bundled with the enclave
-   client?
-2. Auto-redaction for the hackathon: rules/regex + a small local model, or
-   keep some detection browser-side?
-3. Does the founder's Claude talk to the local MCP (which talks to the enclave),
-   or to both directly?
-4. `pitch_reprep`: how many loop iterations before the demo locks the pitch?
+1. Attestation UX: does the founder's Claude surface the attestation check, or is
+   it silent until it fails?
+2. Auto-redaction method mix for the hackathon (regex + small model vs LLM).
+3. `pitch_reprep` iterations before the demo locks the pitch.
