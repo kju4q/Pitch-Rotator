@@ -2,8 +2,8 @@
 
 > An MCP **server running inside a TEE** that reads the founder's brain and
 > reconstructs their pitch — then closes the loop: prep → record → evaluate →
-> re-prep. Mirrors the Router / Teleport confidential-MCP design: **attest before
-> send.** Grounded in the `mcp-server/` scaffold and `src/lib/pitchrotator-demo.ts`.
+> re-prep. Built on a confidential-MCP design: **attest before send.**
+> Grounded in the `mcp-server/` scaffold and `src/lib/pitchrotator-demo.ts`.
 
 ## 1. End goal
 
@@ -19,10 +19,10 @@ the product.
 
 ## 2. Architecture — MCP server in a TEE; the founder's Claude is the client
 
-Mirror of Router/Teleport's confidential-MCP design: the MCP **server runs inside
-a secure enclave**, and the AI client (the founder's Claude) **remotely attests**
-the enclave is genuine, unmodified, published code **before it sends anything**.
-That turns "trust the host" into "math the client checks."
+The MCP **server runs inside a secure enclave**, and the AI client (the founder's
+Claude) **remotely attests** the enclave is genuine, unmodified, published code
+**before it sends anything**. That turns "trust the host" into "math the client
+checks."
 
 ```
 [founder's environment]                 [MCP server in TEE — Phala/dstack TDX]     [outside]
@@ -37,8 +37,8 @@ That turns "trust the host" into "math the client checks."
 ```
 
 ### 2.1 MCP client — the founder's Claude (their environment)
-- The MCP installs with an **auto-loaded default prompt** (like Router's
-  `MCP_SKILL_INSTRUCTIONS`).
+- The MCP installs with an **auto-loaded default prompt** (served from the MCP
+  server on connect, so the founder never copies anything).
 - The prompt drives the founder's Claude to **scrape/read the messy environment**
   — local files, repos, Claude exports, notes — using the founder's own local
   access (which a remote sandbox can't reach).
@@ -60,7 +60,7 @@ Voice Profile, first pitch, evaluation, and the re-prep loop all consume
 **redacted** data, so they run **outside** the enclave on cheap normal compute.
 The enclave is a scalpel for the one moment raw exists, not a blanket.
 
-## 3. Privacy model — attest before send (Router pattern)
+## 3. Privacy model — attest before send
 
 - **The client checks the math first.** The founder's Claude verifies the enclave
   is genuine + running the published code before sending raw. Privacy is not
@@ -70,8 +70,8 @@ The enclave is a scalpel for the one moment raw exists, not a blanket.
 - **The redaction agent is the entire trust boundary** — so it does redact →
   re-verify before release (defense in depth) and is relentlessly tested (§7).
 - **Honesty:** the enclave is claimed only when real. `insecure-dev` mode
-  (`ALLOW_INSECURE_NO_TEE`) is explicit, never silent — mirroring Router's *"we
-  won't tell you the enclave exists before it does."*
+  (`ALLOW_INSECURE_NO_TEE`) is explicit, never silent — we never tell the founder
+  the enclave exists before it does.
 
 ## 4. MCP tool surface — the loop
 
