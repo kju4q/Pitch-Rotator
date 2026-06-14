@@ -1,0 +1,16 @@
+# PitchRotator — runs locally with `docker compose up --build`,
+# and is the app definition dstack/Phala Cloud deploys into a CVM.
+#
+# dstack does NOT build images: it pulls `image:` into the confidential VM.
+# Push the image first (see DEPLOY_DSTACK.md), then pin it here by digest
+# so the deployed image is reproducible and attestable.
+services:
+  pitchrotator:
+    # For dstack, replace with your pushed image, ideally pinned by digest:
+    #   image: docker.io/<youruser>/pitchrotator@sha256:<digest>
+    image: pitchrotator:latest
+    build:
+      context: .
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
